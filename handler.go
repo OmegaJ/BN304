@@ -2,8 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gorilla/mux"
 )
@@ -29,9 +31,19 @@ func CreateEntry(write http.ResponseWriter, request *http.Request) {
 	write.Header().Set("Content-Type", "application/json")
 	var newEntry DetectedEntry
 	_ = json.NewDecoder(request.Body).Decode(&newEntry)
-	newEntry.ID = AllEntries[len(AllEntries)-1].ID + 1
-	AllEntries = append(AllEntries, newEntry)
-	json.NewEncoder(write).Encode(newEntry)
+	if t, _ := time.Parse(time.RFC3339, "0001-01-01T00:00:00Z"); newEntry.EnterTime == t {
+		newEntry.EnterTime = time.Now()
+	}
+	if newEntry.FilePath == "" {
+		json.NewEncoder(write).Encode(nil)
+		return
+	}
+	_, err = db.Exec(fmt.Sprintf("INSERT INTO Entries (Time, FootagePath) VALUES ('%s','%s');", newEntry.EnterTime.Format(time.RFC3339), newEntry.FilePath))
+	if err == nil {
+		json.NewEncoder(write).Encode(newEntry)
+		return
+	}
+	json.NewEncoder(write).Encode(err)
 }
 
 func UpdateEntry(write http.ResponseWriter, request *http.Request) {
